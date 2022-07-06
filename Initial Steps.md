@@ -33,3 +33,16 @@ Make note of the first IP in the string. It is the gateway address (eg - 192.168
 2. Retrieve the current DNS server of the network - `sudo nano /etc/resolv.conf`
 Copy the IP address at the nameserver (eg - 8.8.8.8).
 3. Modify the “dhcpcd.conf” configuration file - `sudo nano /etc/dhcpcd.conf`
+4. Static IP can be set for ethernet "`eth0`" connection or WiFi "`wlan0`" connection. Replace the following placeholders as needed - 
+```
+# <NETWORK> = eth0 or wlan0
+# <STATICIP> = static IP needed for RPi
+# <ROUTERIP> = router/gateway IP
+# <DNSIP> = DNS IP
+interface <NETWORK>
+static ip_address=<STATICIP>/24
+static routers=<ROUTERIP>
+static domain_name_servers=<DNSIP>
+```
+5. Save the file by `Ctrl` + `X` and then `Y`.
+6. Reboot for the changes to take place - `sudo reboot -h now`
