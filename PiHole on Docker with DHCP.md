@@ -7,6 +7,7 @@ With DHCP enabled, it will be PiHole which assigns local IP to the different dev
 
 **WARNING - If the Raspberry Pi or PiHole fails, then the entire network will lose internet connectivity unless the IP address is set on EACH of the devices manually or the router is reset.**
 
+
 The following environment variables are absolutely necessary - 
 1. `WEBPASSWORD` - Used for accessing the PiHole web interface. Not setting it during install time will result in PiHole generating a random password which will be displayed *inside* the Docker container after successful installation.
 2. `FTLCONF_REPLY_ADDR4` - Static IP of the device PiHole is running on. Used for the resolution of the admin page by its own custom URL.
