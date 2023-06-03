@@ -1,15 +1,18 @@
 ﻿# Initial Steps
-![Latest Release](https://img.shields.io/badge/Updated%20on-6th%20July-informational?style=for-the-badge)
+![Latest Release](https://img.shields.io/badge/Updated%20on-3rd%20June%202023-informational?style=for-the-badge)
 
 The following document details the initial steps to be taken after starting up a Raspberry Pi 4B for the first time.
 
 It is assumed that Raspberry Pi OS has been installed with user as `pi` and SSH enabled.
 
 ## Update
-1. To update it - 
-`sudo apt update`
-`sudo apt upgrade`
-2. Reboot the system - `sudo reboot -h now`
+1. Update the package list - `sudo apt update`
+2. Run a full upgrade on the packages which will install any additional dependencies - `sudo apt full-upgrade`
+3. Reboot the system - `sudo reboot -h now`
+
+*Cleaning up after the update*
+1. Remove packages which are no longer required - `sudo apt upgrade`
+2. Clean up package archive - `sudo apt clean`
 
 ## Block/Unblock Wifi & Bluetooth
 1. Install rkfill package - `sudo apt install rfkill`
