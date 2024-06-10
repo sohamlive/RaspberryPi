@@ -12,7 +12,6 @@ Run by `docker compose up -d`
 
 Once started, NPM can be accessed at http://\<ip-address\>:81
 ```yaml
-version: "3"
 services:
   app:
     image: 'jc21/nginx-proxy-manager:latest'

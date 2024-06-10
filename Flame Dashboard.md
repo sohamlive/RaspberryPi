@@ -11,8 +11,6 @@ Run by `docker compose up -d`
 Once started, it can be accessed by http://\<ip-address\>:5005.
 
 ```yaml
-version: '3.6'
-
 services:
   flame:
     image: pawelmalak/flame:multiarch
@@ -22,6 +20,6 @@ services:
     ports:
       - "5005:5005"
     environment:
-      - PASSWORD=password123
+      - PASSWORD=Jamshedpur@123
     restart: unless-stopped
 ```
