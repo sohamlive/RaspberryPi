@@ -44,7 +44,7 @@ services:
   # ------------------------------------------------------------
   # 1. PI-HOLE — DNS + Ad Blocking
   # Local URL: http://pihole.lab/admin
-  # Default login password is set via WEBPASSWORD below.
+  # Default login password is set via webserver below.
   # Change it before deploying!
   # ------------------------------------------------------------
   pihole:
@@ -56,13 +56,13 @@ services:
     ports:
       - "53:53/tcp"       # DNS
       - "53:53/udp"       # DNS
-      - "8053:80/tcp"     # Web UI (proxied via Nginx → pihole.lab)
+      - "8053:80/tcp"     # Web UI HTTP  (proxied via Nginx → pihole.lab)
+      - "8443:443/tcp"    # Web UI HTTPS (optional, pihole v6 auto-generates a self-signed cert)
     environment:
       TZ: "Asia/Kolkata"
-      WEBPASSWORD: "Jamshedpur@123"      # ← CHANGE THIS
-      FTLCONF_REPLY_ADDR4: "192.168.1.2" # Raspberry Pi's IP from main router
-      PIHOLE_DNS_: "1.1.1.1;8.8.8.8"    # upstream DNS Pi-hole forwards to (NOT 192.168.1.1)
-      DNSMASQ_LISTENING: "all"
+      FTLCONF_webserver_api_password: "Jamshedpur@123"    # ← v6 variable, WEBPASSWORD no longer works
+      FTLCONF_dns_upstreams: "1.1.1.1;8.8.8.8"     # upstream DNS Pi-hole forwards to (NOT 192.168.1.1)
+      FTLCONF_dns_listeningMode: "all"              # needed when running behind Docker bridge network
     volumes:
       - pihole_data:/etc/pihole
       - pihole_dnsmasq:/etc/dnsmasq.d
@@ -125,6 +125,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # enables Docker widget (shows container status)
     environment:
       TZ: "Asia/Kolkata"
+      HOMEPAGE_ALLOWED_HOSTS: "192.168.1.2:3000,home.lab"
 
   # ------------------------------------------------------------
   # 5. UPTIME KUMA — Uptime Monitoring & Alerts
@@ -187,5 +188,3 @@ services:
       - SYS_PTRACE
     security_opt:
       - apparmor:unconfined
-
-
