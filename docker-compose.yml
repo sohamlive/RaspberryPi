@@ -59,7 +59,8 @@ services:
       - "8053:80/tcp"     # Web UI (proxied via Nginx → pihole.lab)
     environment:
       TZ: "Asia/Kolkata"
-      WEBPASSWORD: "changeme"      # ← CHANGE THIS
+      WEBPASSWORD: "Jamshedpur@123"      # ← CHANGE THIS
+      FTLCONF_REPLY_ADDR4: "192.168.1.2" # Raspberry Pi's IP from main router
       PIHOLE_DNS_: "1.1.1.1;8.8.8.8"    # upstream DNS Pi-hole forwards to (NOT 192.168.1.1)
       DNSMASQ_LISTENING: "all"
     volumes:
