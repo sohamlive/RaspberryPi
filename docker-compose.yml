@@ -1,0 +1,190 @@
+version: "3.8"
+
+# ============================================================
+# Raspberry Pi Home Lab - Full Stack
+#
+# Network layout (all on same 192.168.1.x subnet):
+#   ISP router (DHCP server):  192.168.1.1
+#   Raspberry Pi (this):       192.168.1.2  ← static
+#   Personal router (AP mode): 192.168.1.3  ← bridge, no NAT
+#
+# DNS flow:
+#   All devices → 192.168.1.2 (Pi-hole) → 1.1.1.1 (Cloudflare)
+#   Set Primary DNS to 192.168.1.2 in your ISP router's DHCP settings.
+#
+# Services & their local URLs (via Nginx reverse proxy):
+#   Pi-hole       → pihole.lab
+#   Portainer     → portainer.lab
+#   Homepage      → home.lab
+#   Uptime Kuma   → uptime.lab
+#   Dozzle        → logs.lab
+#   Netdata       → stats.lab
+#   Nginx Proxy   → (internal, no public URL needed)
+#
+# Remote access: Tailscale (installed on host, not a container)
+#   SSH into Pi from anywhere: ssh pi@<tailscale-ip>
+#   All *.lab services reachable via Tailscale IP + port
+# ============================================================
+
+networks:
+  homelab:
+    driver: bridge
+
+volumes:
+  pihole_data:
+  pihole_dnsmasq:
+  portainer_data:
+  uptime_kuma_data:
+  netdata_config:
+  netdata_lib:
+  netdata_cache:
+
+services:
+
+  # ------------------------------------------------------------
+  # 1. PI-HOLE — DNS + Ad Blocking
+  # Local URL: http://pihole.lab/admin
+  # Default login password is set via WEBPASSWORD below.
+  # Change it before deploying!
+  # ------------------------------------------------------------
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "53:53/tcp"       # DNS
+      - "53:53/udp"       # DNS
+      - "8053:80/tcp"     # Web UI (proxied via Nginx → pihole.lab)
+    environment:
+      TZ: "Asia/Kolkata"
+      WEBPASSWORD: "changeme"      # ← CHANGE THIS
+      PIHOLE_DNS_: "1.1.1.1;8.8.8.8"    # upstream DNS Pi-hole forwards to (NOT 192.168.1.1)
+      DNSMASQ_LISTENING: "all"
+    volumes:
+      - pihole_data:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+
+  # ------------------------------------------------------------
+  # 2. PORTAINER — Docker UI & Container Management
+  # Local URL: http://portainer.lab
+  # First launch creates your admin account.
+  # ------------------------------------------------------------
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "9000:9000"       # Web UI (proxied via Nginx → portainer.lab)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+  # ------------------------------------------------------------
+  # 3. NGINX PROXY MANAGER — Reverse Proxy
+  # Admin UI on port 81 (only accessible locally, not proxied).
+  # Use it to configure routes for all *.lab domains.
+  # Default login: admin@example.com / changeme (change on first login)
+  # ------------------------------------------------------------
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "80:80"           # HTTP — all *.lab traffic comes in here
+      - "443:443"         # HTTPS (optional, for SSL on local)
+      - "81:81"           # NPM Admin UI — access via http://192.168.1.2:81
+    volumes:
+      - ./nginx/data:/data
+      - ./nginx/letsencrypt:/etc/letsencrypt
+
+  # ------------------------------------------------------------
+  # 4. HOMEPAGE — Dashboard
+  # Local URL: http://home.lab
+  # Config lives in ./homepage/config/ — edit services.yaml,
+  # bookmarks.yaml, widgets.yaml to customise tiles and widgets.
+  # ------------------------------------------------------------
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "3000:3000"       # Web UI (proxied via Nginx → home.lab)
+    volumes:
+      - ./homepage/config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # enables Docker widget (shows container status)
+    environment:
+      TZ: "Asia/Kolkata"
+
+  # ------------------------------------------------------------
+  # 5. UPTIME KUMA — Uptime Monitoring & Alerts
+  # Local URL: http://uptime.lab
+  # First launch sets up your admin account.
+  # Add monitors for each service after first login.
+  # ------------------------------------------------------------
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "3001:3001"       # Web UI (proxied via Nginx → uptime.lab)
+    volumes:
+      - uptime_kuma_data:/app/data
+
+  # ------------------------------------------------------------
+  # 6. DOZZLE — Real-time Docker Log Viewer
+  # Local URL: http://logs.lab
+  # No login by default. Add auth if you expose this externally.
+  # ------------------------------------------------------------
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "8080:8080"       # Web UI (proxied via Nginx → logs.lab)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOZZLE_LEVEL: info
+
+  # ------------------------------------------------------------
+  # 7. NETDATA — System Monitoring (CPU, RAM, Temp, Disk)
+  # Local URL: http://stats.lab
+  # Lightweight, real-time, no config needed out of the box.
+  # ------------------------------------------------------------
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "19999:19999"     # Web UI (proxied via Nginx → stats.lab)
+    volumes:
+      - netdata_config:/etc/netdata
+      - netdata_lib:/var/lib/netdata
+      - netdata_cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+
+
