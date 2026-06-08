@@ -60,15 +60,58 @@ echo "      Network restarted with static IP $STATIC_IP"
 # STEP 2: Update system
 # ------------------------------------------------------------
 echo ""
-echo "[2/6] Updating system packages..."
+echo "[2/7] Updating system packages..."
 apt-get update -qq && apt-get upgrade -y -qq
 echo "      Done."
 
 # ------------------------------------------------------------
-# STEP 3: Install Docker (skip if already installed)
+# STEP 3: Install log2ram — reduces SD card wear
+# Moves /var/log to RAM, syncs to disk once daily.
+# Must be installed BEFORE Docker so it's active when
+# containers start writing logs.
 # ------------------------------------------------------------
 echo ""
-echo "[3/6] Checking Docker installation..."
+echo "[3/7] Installing log2ram..."
+
+if systemctl is-active --quiet log2ram; then
+  echo "      log2ram already running. Skipping."
+else
+  # Install rsync (required by log2ram)
+  apt-get install -y rsync -qq
+
+  # Add azlux repo and install log2ram
+  printf 'deb [signed-by=/usr/share/keyrings/azlux-archive-keyring.gpg] http://packages.azlux.fr/debian/ bookworm main' \
+    | tee /etc/apt/sources.list.d/azlux.list
+  wget -qO /usr/share/keyrings/azlux-archive-keyring.gpg https://azlux.fr/repo.gpg
+  apt-get update -qq
+  apt-get install -y log2ram
+
+  # Configure log2ram:
+  # - SIZE 128M: enough headroom for system + Docker + Pi-hole logs in RAM
+  #   Default 40M is too small when running multiple Docker services.
+  # - MAIL false: don't send email alerts on sync failure (no mail server here)
+  # - JOURNALD_AWARE true (default): log2ram rotates journald logs before sync
+  sed -i 's/^SIZE=.*/SIZE=128M/' /etc/log2ram.conf
+  sed -i 's/^MAIL=.*/MAIL=false/' /etc/log2ram.conf
+
+  # Cap journald to half of log2ram SIZE so it never overflows the RAM disk.
+  # log2ram docs recommend SystemMaxUse = half of SIZE.
+  mkdir -p /etc/systemd/journald.conf.d
+  cat > /etc/systemd/journald.conf.d/log2ram.conf <<'JEOF'
+[Journal]
+SystemMaxUse=64M
+JEOF
+
+  echo "      log2ram installed. SIZE=128M, journald capped at 64M."
+  echo "      NOTE: log2ram requires a reboot to activate."
+  echo "      The script will continue — reboot at the end."
+fi
+
+# ------------------------------------------------------------
+# STEP 4: Install Docker (skip if already installed)
+# ------------------------------------------------------------
+echo ""
+echo "[4/7] Checking Docker installation..."
 
 if ! command -v docker &> /dev/null; then
   echo "      Docker not found. Installing..."
@@ -88,10 +131,10 @@ else
 fi
 
 # ------------------------------------------------------------
-# STEP 4: Create config directories and seed config files
+# STEP 5: Create config directories and seed config files
 # ------------------------------------------------------------
 echo ""
-echo "[4/6] Creating config directories and seeding config files..."
+echo "[5/7] Creating config directories and seeding config files..."
 
 mkdir -p ./nginx/data
 mkdir -p ./nginx/letsencrypt
@@ -264,20 +307,19 @@ echo "        ~/homelab/homepage/config/images/background.jpg"
 echo "      Then update services.yaml: replace YOUR_PIHOLE_PASSWORD_HERE with your Pi-hole password."
 
 # ------------------------------------------------------------
-# STEP 5: Pull all images and start services
+# STEP 6: Pull all images and start services
 # ------------------------------------------------------------
 echo ""
-echo "[5/6] Pulling Docker images and starting services..."
+echo "[6/7] Pulling Docker images and starting services..."
 docker compose pull
 docker compose up -d
 echo "      All services started."
 
 # ------------------------------------------------------------
-# STEP 6: Set up auto-start on boot (Docker already handles
-# this via restart: unless-stopped, but confirm service is on)
+# STEP 7: Enable Docker on boot and remind about reboot
 # ------------------------------------------------------------
 echo ""
-echo "[6/6] Ensuring Docker starts on boot..."
+echo "[7/7] Ensuring Docker starts on boot..."
 systemctl enable docker
 echo "      Docker enabled on boot."
 
@@ -306,5 +348,10 @@ echo "    3. Install Tailscale for remote access: curl -fsSL https://tailscale.c
 echo "       Then run: sudo tailscale up"
 echo "       Then run: tailscale ip   (note this IP — use it to SSH from anywhere)"
 echo ""
-echo "  Pi-hole web password: changeme  ← Change this in docker-compose.yml before deploying!"
+echo "  Pi-hole web password: changed!"
+echo ""
+echo "  *** REBOOT REQUIRED ***"
+echo "  log2ram needs a reboot to activate and start protecting your SD card."
+echo "  Run: sudo reboot"
+echo "  After reboot, verify log2ram is running: sudo systemctl status log2ram"
 echo ""
