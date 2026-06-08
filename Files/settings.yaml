@@ -1,0 +1,39 @@
+# ============================================================
+# Homepage - settings.yaml
+# ============================================================
+
+title: Home Lab
+favicon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/pi-hole.png
+
+theme: dark
+color: slate
+
+# Background image — place your coral reef image in:
+# ~/homelab/homepage/config/images/background.jpg
+# then reference it as shown below.
+background:
+  image: /images/background.jpg
+  blur: sm          # sm = subtle blur — keeps detail, improves text readability
+  saturate: 100     # 100 = full colour
+  brightness: 60    # 60 = slightly dimmed so text pops
+  opacity: 80       # 80 = slightly transparent overlay effect
+
+layout:
+  Network:
+    style: row
+    columns: 3
+    header: true
+    icon: mdi-network
+  Home Lab:
+    style: row
+    columns: 3
+    header: true
+    icon: mdi-server
+
+useEqualHeights: true
+cardBlur: sm        # slight blur on service cards too, ties in with background
+
+language: en
+
+providers:
+  openweathermap: ""   # not used — using openmeteo which needs no key

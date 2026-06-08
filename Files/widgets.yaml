@@ -1,0 +1,43 @@
+# ============================================================
+# Homepage - widgets.yaml
+# Header info widgets — shown at the top of the dashboard
+# ============================================================
+
+- greeting:
+    text_size: xl
+    text: "Home Lab"
+
+- datetime:
+    text_size: l
+    format:
+      dateStyle: long
+      timeStyle: short
+      hourCycle: h23
+
+- openmeteo:
+    label: Jamshedpur
+    latitude: 22.804083
+    longitude: 86.169111
+    timezone: Asia/Kolkata
+    units: metric
+    cache: 5
+    format:
+      maximumFractionDigits: 1
+
+- resources:
+    label: CPU
+    cpu: true
+    cputemp: true
+    units: celsius
+
+- resources:
+    label: Memory
+    memory: true
+
+- resources:
+    label: Storage
+    disk: /
+
+- search:
+    provider: google
+    target: _blank

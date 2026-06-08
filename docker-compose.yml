@@ -19,7 +19,8 @@ version: "3.8"
 #   Uptime Kuma   → uptime.lab
 #   Dozzle        → logs.lab
 #   Netdata       → stats.lab
-#   Nginx Proxy   → (internal, no public URL needed)
+#   File Browser  → files.lab
+#   Nginx Proxy   → proxy.lab
 #
 # Remote access: Tailscale (installed on host, not a container)
 #   SSH into Pi from anywhere: ssh pi@<tailscale-ip>
@@ -38,13 +39,14 @@ volumes:
   netdata_config:
   netdata_lib:
   netdata_cache:
+  filebrowser_data:
 
 services:
 
   # ------------------------------------------------------------
   # 1. PI-HOLE — DNS + Ad Blocking
   # Local URL: http://pihole.lab/admin
-  # Default login password is set via webserver below.
+  # Default login password is set via WEBPASSWORD below.
   # Change it before deploying!
   # ------------------------------------------------------------
   pihole:
@@ -60,7 +62,7 @@ services:
       - "8443:443/tcp"    # Web UI HTTPS (optional, pihole v6 auto-generates a self-signed cert)
     environment:
       TZ: "Asia/Kolkata"
-      FTLCONF_webserver_api_password: "Jamshedpur@123"    # ← v6 variable, WEBPASSWORD no longer works
+      FTLCONF_webserver_api_password: "Jamshedpur@123"    # ← CHANGE THIS (v6 variable, WEBPASSWORD no longer works)
       FTLCONF_dns_upstreams: "1.1.1.1;8.8.8.8"     # upstream DNS Pi-hole forwards to (NOT 192.168.1.1)
       FTLCONF_dns_listeningMode: "all"              # needed when running behind Docker bridge network
     volumes:
@@ -101,7 +103,7 @@ services:
     ports:
       - "80:80"           # HTTP — all *.lab traffic comes in here
       - "443:443"         # HTTPS (optional, for SSL on local)
-      - "81:81"           # NPM Admin UI — access via http://192.168.1.2:81
+      - "81:81"           # Web UI (proxied via Nginx → proxy.lab)
     volumes:
       - ./nginx/data:/data
       - ./nginx/letsencrypt:/etc/letsencrypt
@@ -188,3 +190,30 @@ services:
       - SYS_PTRACE
     security_opt:
       - apparmor:unconfined
+
+  # ------------------------------------------------------------
+  # 8. FILE BROWSER — Web-based File Manager
+  # Local URL: http://files.lab
+  # Default login: admin / admin  ← CHANGE PASSWORD ON FIRST LOGIN
+  # Mounts the Pi's home directory so you can browse, edit,
+  # upload and download files from the browser.
+  # IMPORTANT: filebrowser.db and settings.json must exist on
+  # disk before container starts — setup.sh handles this.
+  # ------------------------------------------------------------
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "8085:80"           # Web UI (proxied via Nginx → files.lab)
+    volumes:
+      - /home/soham:/srv    # root directory exposed in browser
+      - ./filebrowser/filebrowser.db:/database/filebrowser.db
+      - ./filebrowser/settings.json:/config/settings.json
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+
+

@@ -77,6 +77,7 @@ VOLUMES=(
   "homelab_netdata_config"
   "homelab_netdata_lib"
   "homelab_netdata_cache"
+  "homelab_filebrowser_data"
 )
 
 for VOL in "${VOLUMES[@]}"; do
@@ -107,6 +108,7 @@ IMAGES=(
   "louislam/uptime-kuma"
   "amir20/dozzle"
   "netdata/netdata"
+  "filebrowser/filebrowser"
 )
 
 for IMG in "${IMAGES[@]}"; do
@@ -145,6 +147,7 @@ echo "[5/5] Removing config directories..."
 DIRS=(
   "./nginx"
   "./homepage/config"
+  "./filebrowser"
 )
 
 for DIR in "${DIRS[@]}"; do

@@ -88,51 +88,180 @@ else
 fi
 
 # ------------------------------------------------------------
-# STEP 4: Create config directories
+# STEP 4: Create config directories and seed config files
 # ------------------------------------------------------------
 echo ""
-echo "[4/6] Creating config directories..."
+echo "[4/6] Creating config directories and seeding config files..."
 
 mkdir -p ./nginx/data
 mkdir -p ./nginx/letsencrypt
-mkdir -p ./homepage/config
+mkdir -p ./homepage/config/images
+mkdir -p ./filebrowser
 
-# Create a minimal homepage config if not present
+# ---- File Browser: pre-create required files ----
+# Filebrowser WILL NOT START without these files existing on disk first.
+if [ ! -f ./filebrowser/filebrowser.db ]; then
+  touch ./filebrowser/filebrowser.db
+  echo "      Created filebrowser/filebrowser.db"
+fi
+
+if [ ! -f ./filebrowser/settings.json ]; then
+cat > ./filebrowser/settings.json <<'FBEOF'
+{
+  "port": 80,
+  "baseURL": "",
+  "address": "",
+  "log": "stdout",
+  "database": "/database/filebrowser.db",
+  "root": "/srv"
+}
+FBEOF
+echo "      Created filebrowser/settings.json"
+fi
+
+# ---- Homepage: services.yaml ----
 if [ ! -f ./homepage/config/services.yaml ]; then
-cat > ./homepage/config/services.yaml <<EOF
-- Home Lab:
+cat > ./homepage/config/services.yaml <<'SVCEOF'
+- Network:
+    - ISP Router:
+        href: http://192.168.1.1
+        description: Main ISP Gateway
+        icon: router.png
+        ping: 192.168.1.1
+    - TP-Link Router:
+        href: http://192.168.1.3
+        description: Personal Router (AP Mode)
+        icon: tp-link.png
+        ping: 192.168.1.3
     - Pi-hole:
         href: http://pihole.lab/admin
         description: DNS & Ad Blocking
         icon: pi-hole.png
+        widget:
+          type: pihole
+          url: http://192.168.1.2:8053
+          version: 6
+          key: Jamshedpur@123
+
+- Home Lab:
     - Portainer:
         href: http://portainer.lab
         description: Docker Management
         icon: portainer.png
+    - Nginx Proxy Manager:
+        href: http://proxy.lab
+        description: Reverse Proxy & Local Hosts
+        icon: nginx-proxy-manager.png
     - Uptime Kuma:
         href: http://uptime.lab
         description: Uptime Monitoring
         icon: uptime-kuma.png
     - Dozzle:
         href: http://logs.lab
-        description: Container Logs
+        description: Container Log Viewer
         icon: docker.png
     - Netdata:
         href: http://stats.lab
-        description: System Stats
+        description: System Stats & Performance
         icon: netdata.png
-EOF
-echo "      Created default homepage/config/services.yaml"
+    - File Browser:
+        href: http://files.lab
+        description: Web File Manager
+        icon: filebrowser.png
+SVCEOF
+echo "      Created homepage/config/services.yaml"
 fi
 
+# ---- Homepage: widgets.yaml ----
+if [ ! -f ./homepage/config/widgets.yaml ]; then
+cat > ./homepage/config/widgets.yaml <<'WGEOF'
+- greeting:
+    text_size: xl
+    text: "Home Lab"
+
+- datetime:
+    text_size: l
+    format:
+      dateStyle: long
+      timeStyle: short
+      hourCycle: h23
+
+- openmeteo:
+    label: Jamshedpur
+    latitude: 22.804083
+    longitude: 86.169111
+    timezone: Asia/Kolkata
+    units: metric
+    cache: 5
+    format:
+      maximumFractionDigits: 1
+
+- resources:
+    label: CPU
+    cpu: true
+    cputemp: true
+    units: celsius
+
+- resources:
+    label: Memory
+    memory: true
+
+- resources:
+    label: Storage
+    disk: /
+
+- search:
+    provider: google
+    target: _blank
+WGEOF
+echo "      Created homepage/config/widgets.yaml"
+fi
+
+# ---- Homepage: settings.yaml ----
 if [ ! -f ./homepage/config/settings.yaml ]; then
-cat > ./homepage/config/settings.yaml <<EOF
+cat > ./homepage/config/settings.yaml <<'STEOF'
 title: Home Lab
+favicon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homelabids.png
+
 theme: dark
 color: slate
-EOF
-echo "      Created default homepage/config/settings.yaml"
+
+background:
+  image: /images/background.jpg
+  blur: sm
+  saturate: 100
+  brightness: 60
+  opacity: 80
+
+layout:
+  Network:
+    style: row
+    columns: 3
+    header: true
+    icon: mdi-network
+  Home Lab:
+    style: row
+    columns: 3
+    header: true
+    icon: mdi-server
+
+useEqualHeights: true
+cardBlur: sm
+
+language: en
+STEOF
+echo "      Created homepage/config/settings.yaml"
 fi
+
+# ---- Fix ownership so your user can edit configs without sudo ----
+chown -R $SUDO_USER:$SUDO_USER ./homepage/
+chown -R $SUDO_USER:$SUDO_USER ./nginx/
+chown -R $SUDO_USER:$SUDO_USER ./filebrowser/
+echo "      Ownership set to $SUDO_USER for all config directories"
+echo ""
+echo "      NOTE: Add your background image at:"
+echo "        ~/homelab/homepage/config/images/background.jpg"
+echo "      Then update services.yaml: replace YOUR_PIHOLE_PASSWORD_HERE with your Pi-hole password."
 
 # ------------------------------------------------------------
 # STEP 5: Pull all images and start services
@@ -162,12 +291,13 @@ echo "============================================"
 echo ""
 echo "  Services running at:"
 echo "    http://$STATIC_IP:81     → Nginx Proxy Manager admin (set up *.lab routes here)"
-echo "    http://$STATIC_IP:8053   → Pi-hole (before proxy is configured)"
+echo "    http://$STATIC_IP:8053   → Pi-hole"
 echo "    http://$STATIC_IP:9000   → Portainer"
 echo "    http://$STATIC_IP:3000   → Homepage"
 echo "    http://$STATIC_IP:3001   → Uptime Kuma"
 echo "    http://$STATIC_IP:8080   → Dozzle"
 echo "    http://$STATIC_IP:19999  → Netdata"
+echo "    http://$STATIC_IP:8085   → File Browser (login: admin / admin — change immediately!)"
 echo ""
 echo "  Next steps:"
 echo "    1. Visit http://$STATIC_IP:81 and configure *.lab reverse proxy routes"
