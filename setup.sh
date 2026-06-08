@@ -303,7 +303,7 @@ chown -R $SUDO_USER:$SUDO_USER ./filebrowser/
 echo "      Ownership set to $SUDO_USER for all config directories"
 echo ""
 echo "      NOTE: Add your background image at:"
-echo "        ~/homelab/homepage/config/images/background.jpg"
+echo "        ~/HomeLab/homepage/config/images/background.jpg"
 echo "      Then update services.yaml: replace YOUR_PIHOLE_PASSWORD_HERE with your Pi-hole password."
 
 # ------------------------------------------------------------
