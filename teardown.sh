@@ -6,14 +6,18 @@
 #   - All running containers from the homelab stack
 #   - All Docker images pulled for the stack
 #   - All named Docker volumes (Pi-hole data, Portainer data, etc)
-#   - All homelab config directories (nginx/, homepage/)
+#   - All homelab config directories (nginx/, homepage/, filebrowser/)
 #   - The Docker bridge network created by compose
+#   - CUPS printer configuration (registered printers)
+#   - Avahi AirPrint service file
 #
 # What this KEEPS:
 #   - Docker and Docker Compose
 #   - Tailscale
 #   - Your static IP config (nmcli)
-#   - The docker-compose.yml and setup.sh files themselves
+#   - CUPS, Samba, Avahi packages (just clears config)
+#   - log2ram
+#   - The docker-compose.yml, setup.sh, and other scripts
 #   - The Pi OS and all system packages
 #
 # Usage:
@@ -142,7 +146,7 @@ fi
 # STEP 5: Remove config directories
 # ------------------------------------------------------------
 echo ""
-echo "[5/5] Removing config directories..."
+echo "[5/6] Removing config directories..."
 
 DIRS=(
   "./nginx"
@@ -166,6 +170,28 @@ if [ -d "./homepage" ] && [ -z "$(ls -A ./homepage)" ]; then
 fi
 
 # ------------------------------------------------------------
+# STEP 6: Remove CUPS printer config and Avahi AirPrint file
+# ------------------------------------------------------------
+echo ""
+echo "[6/6] Removing CUPS printer config and Avahi AirPrint service..."
+
+# Remove all registered printers from CUPS
+for PRINTER in $(lpstat -p 2>/dev/null | awk '{print $2}'); do
+  lpadmin -x "$PRINTER" 2>/dev/null && echo "      Removed CUPS printer: $PRINTER" || true
+done
+
+# Remove Avahi AirPrint service file
+if [ -f /etc/avahi/services/Epson-L3110.service ]; then
+  rm /etc/avahi/services/Epson-L3110.service
+  systemctl restart avahi-daemon
+  echo "      Removed Avahi AirPrint service file."
+else
+  echo "      Avahi service file not found (skipping)."
+fi
+
+echo "      Done."
+
+# ------------------------------------------------------------
 # Done
 # ------------------------------------------------------------
 echo ""
@@ -178,13 +204,17 @@ echo "    - All homelab containers"
 echo "    - All homelab Docker volumes and data"
 echo "    - All homelab Docker images"
 echo "    - homelab Docker bridge network"
-echo "    - nginx/ and homepage/config/ directories"
+echo "    - nginx/, homepage/config/, filebrowser/ directories"
+echo "    - CUPS registered printers"
+echo "    - Avahi AirPrint service file"
 echo ""
 echo "  What was kept:"
 echo "    - Docker and Docker Compose"
 echo "    - Tailscale"
 echo "    - Static IP configuration"
-echo "    - docker-compose.yml and setup.sh"
+echo "    - CUPS, Samba, Avahi packages"
+echo "    - log2ram"
+echo "    - docker-compose.yml, setup.sh, teardown.sh, tailscale-serve.sh"
 echo ""
 echo "  To redeploy from scratch, run:"
 echo "    sudo ./setup.sh"

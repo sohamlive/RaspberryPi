@@ -127,7 +127,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # enables Docker widget (shows container status)
     environment:
       TZ: "Asia/Kolkata"
-      HOMEPAGE_ALLOWED_HOSTS: "192.168.1.2:3000,home.lab"
+      HOMEPAGE_ALLOWED_HOSTS: "192.168.1.2:3000,home.lab,homepi.darter-economy.ts.net,100.107.90.44:3000"
 
   # ------------------------------------------------------------
   # 5. UPTIME KUMA — Uptime Monitoring & Alerts

@@ -111,7 +111,7 @@ fi
 # STEP 4: Install Docker (skip if already installed)
 # ------------------------------------------------------------
 echo ""
-echo "[4/7] Checking Docker installation..."
+echo "[4/8] Checking Docker installation..."
 
 if ! command -v docker &> /dev/null; then
   echo "      Docker not found. Installing..."
@@ -134,7 +134,7 @@ fi
 # STEP 5: Create config directories and seed config files
 # ------------------------------------------------------------
 echo ""
-echo "[5/7] Creating config directories and seeding config files..."
+echo "[5/8] Creating config directories and seeding config files..."
 
 mkdir -p ./nginx/data
 mkdir -p ./nginx/letsencrypt
@@ -184,7 +184,7 @@ cat > ./homepage/config/services.yaml <<'SVCEOF'
           type: pihole
           url: http://192.168.1.2:8053
           version: 6
-          key: Jamshedpur@123
+          key: YOUR_PIHOLE_PASSWORD_HERE
 
 - Home Lab:
     - Portainer:
@@ -264,7 +264,7 @@ fi
 if [ ! -f ./homepage/config/settings.yaml ]; then
 cat > ./homepage/config/settings.yaml <<'STEOF'
 title: Home Lab
-favicon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homelabids.png
+favicon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/pi-hole.png
 
 theme: dark
 color: slate
@@ -303,25 +303,109 @@ chown -R $SUDO_USER:$SUDO_USER ./filebrowser/
 echo "      Ownership set to $SUDO_USER for all config directories"
 echo ""
 echo "      NOTE: Add your background image at:"
-echo "        ~/HomeLab/homepage/config/images/background.jpg"
+echo "        ~/homelab/homepage/config/images/background.jpg"
 echo "      Then update services.yaml: replace YOUR_PIHOLE_PASSWORD_HERE with your Pi-hole password."
 
 # ------------------------------------------------------------
-# STEP 6: Pull all images and start services
+# STEP 6: Install CUPS print server + Epson driver
+# Enables the Epson L3110 (USB) to be shared over the network.
+# Avahi handles AirPrint (iPhone/Mac), Samba handles Windows.
 # ------------------------------------------------------------
 echo ""
-echo "[6/7] Pulling Docker images and starting services..."
+echo "[6/8] Installing CUPS print server and Epson driver..."
+
+apt-get install -y cups printer-driver-escpr avahi-daemon avahi-utils samba -qq
+
+# Add user to lpadmin so they can manage printers without sudo
+usermod -aG lpadmin $SUDO_USER
+
+# Enable web interface
+cupsctl WebInterface=yes
+
+# Allow network access and sharing
+cupsctl --share-printers
+cupsctl BrowseLocalProtocols=dnssd
+
+# Update cupsd.conf — allow remote access and fix encryption
+CUPSD_CONF="/etc/cups/cupsd.conf"
+
+# Change Listen localhost:631 to Port 631
+sed -i 's/^Listen localhost:631/Port 631/' $CUPSD_CONF
+
+# Add ServerAlias and encryption settings after Port 631 if not present
+if ! grep -q "ServerAlias \*" $CUPSD_CONF; then
+  sed -i '/^Port 631/a ServerAlias *\nBrowsing On\nBrowseLocalProtocols dnssd\nDefaultEncryption IfRequested' $CUPSD_CONF
+fi
+
+# Allow @LOCAL in all Location blocks
+sed -i '/<Location \/>/,/<\/Location>/ s/Order allow,deny/Order allow,deny\n  Allow @LOCAL/' $CUPSD_CONF 2>/dev/null || true
+sed -i '/<Location \/admin>/,/<\/Location>/ s/Order allow,deny/Order allow,deny\n  Allow @LOCAL/' $CUPSD_CONF 2>/dev/null || true
+sed -i '/<Location \/admin\/conf>/,/<\/Location>/ s/Order allow,deny/Order allow,deny\n  Allow @LOCAL/' $CUPSD_CONF 2>/dev/null || true
+
+# Create Samba spool directory
+mkdir -p /var/spool/samba
+chmod 1777 /var/spool/samba
+
+# Update smb.conf — fix printers block path and guest access
+sed -i '/^\[printers\]/,/^\[/ {
+  s|path = /var/tmp|path = /var/spool/samba|
+  s|guest ok = no|guest ok = yes|
+}' /etc/samba/smb.conf
+
+# Create Avahi AirPrint service file for Epson L3110
+# NOTE: Update the rp= and adminurl= lines if you name your printer differently in CUPS
+mkdir -p /etc/avahi/services
+cat > /etc/avahi/services/Epson-L3110.service <<'AVEOF'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">Epson L3110 @ %h</name>
+  <service>
+    <type>_ipp._tcp</type>
+    <subtype>_universal._sub._ipp._tcp</subtype>
+    <port>631</port>
+    <txt-record>txtvers=1</txt-record>
+    <txt-record>qtotal=1</txt-record>
+    <txt-record>rp=printers/Epson-L3110</txt-record>
+    <txt-record>ty=Epson L3110</txt-record>
+    <txt-record>adminurl=http://192.168.1.2:631/printers/Epson-L3110</txt-record>
+    <txt-record>note=Epson L3110 Print Server</txt-record>
+    <txt-record>priority=0</txt-record>
+    <txt-record>Transparent=T</txt-record>
+    <txt-record>URF=none</txt-record>
+    <txt-record>pdl=application/octet-stream,application/pdf,application/postscript,image/jpeg,image/png,image/urf</txt-record>
+    <txt-record>Color=T</txt-record>
+    <txt-record>Copies=T</txt-record>
+    <txt-record>product=(ESP)</txt-record>
+  </service>
+</service-group>
+AVEOF
+
+# Enable and restart all print services
+systemctl enable cups avahi-daemon smbd
+systemctl restart cups avahi-daemon smbd
+
+echo "      CUPS, Avahi, and Samba installed and configured."
+echo "      NOTE: You still need to add the printer manually via CUPS web UI."
+echo "        Visit http://192.168.1.2:631 after setup to add the Epson L3110."
+echo "        (Make sure the printer is plugged into the Pi's USB port first)"
+
+# ------------------------------------------------------------
+# STEP 7: Pull all images and start services
+# ------------------------------------------------------------
+echo ""
+echo "[7/8] Pulling Docker images and starting services..."
 docker compose pull
 docker compose up -d
 echo "      All services started."
 
 # ------------------------------------------------------------
-# STEP 7: Enable Docker on boot and remind about reboot
+# STEP 8: Enable services on boot
 # ------------------------------------------------------------
 echo ""
-echo "[7/7] Ensuring Docker starts on boot..."
+echo "[8/8] Ensuring all services start on boot..."
 systemctl enable docker
-echo "      Docker enabled on boot."
+echo "      Done."
 
 # ------------------------------------------------------------
 # Done
@@ -332,26 +416,33 @@ echo "  Setup Complete!"
 echo "============================================"
 echo ""
 echo "  Services running at:"
-echo "    http://$STATIC_IP:81     → Nginx Proxy Manager admin (set up *.lab routes here)"
+echo "    http://$STATIC_IP:81     → Nginx Proxy Manager admin"
 echo "    http://$STATIC_IP:8053   → Pi-hole"
 echo "    http://$STATIC_IP:9000   → Portainer"
 echo "    http://$STATIC_IP:3000   → Homepage"
 echo "    http://$STATIC_IP:3001   → Uptime Kuma"
 echo "    http://$STATIC_IP:8080   → Dozzle"
 echo "    http://$STATIC_IP:19999  → Netdata"
-echo "    http://$STATIC_IP:8085   → File Browser (login: admin / admin — change immediately!)"
+echo "    http://$STATIC_IP:8085   → File Browser (default login: admin / admin)"
+echo "    http://$STATIC_IP:631    → CUPS Print Server"
 echo ""
-echo "  Next steps:"
-echo "    1. Visit http://$STATIC_IP:81 and configure *.lab reverse proxy routes"
-echo "    2. Log into your ISP router (192.168.1.1) → DHCP settings → set DNS to 192.168.1.2"
-echo "    3. Install Tailscale for remote access: curl -fsSL https://tailscale.com/install.sh | sh"
-echo "       Then run: sudo tailscale up"
-echo "       Then run: tailscale ip   (note this IP — use it to SSH from anywhere)"
+echo "  Manual steps after reboot:"
+echo "    1. http://$STATIC_IP:81       → Configure *.lab reverse proxy routes in Nginx"
+echo "    2. ISP router (192.168.1.1)   → DHCP settings → set Primary DNS to 192.168.1.2"
+echo "    3. Tailscale                  → curl -fsSL https://tailscale.com/install.sh | sh"
+echo "                                    sudo tailscale up"
+echo "    4. Tailscale dashboard        → DNS → Enable HTTPS Certificates"
+echo "    5. Tailscale dashboard        → DNS → Add nameserver → 100.x.x.x → Restrict to domain: lab"
+echo "    6. http://$STATIC_IP:631      → Add Epson L3110 printer (plug USB in first)"
+echo "    7. Run tailscale-serve.sh     → enables web UI access from anywhere via Tailscale"
+echo "    8. Change File Browser password at http://$STATIC_IP:8085"
+echo "    9. Update services.yaml       → replace YOUR_PIHOLE_PASSWORD_HERE"
+echo "   10. Copy background image      → scp image.jpg soham@$STATIC_IP:~/homelab/homepage/config/images/background.jpg"
 echo ""
-echo "  Pi-hole web password: changed!"
+echo "  Pi-hole password: changeme  ← change FTLCONF_webserver_api_password in docker-compose.yml first!"
 echo ""
 echo "  *** REBOOT REQUIRED ***"
-echo "  log2ram needs a reboot to activate and start protecting your SD card."
+echo "  log2ram needs a reboot to activate."
 echo "  Run: sudo reboot"
-echo "  After reboot, verify log2ram is running: sudo systemctl status log2ram"
+echo "  After reboot: sudo systemctl status log2ram"
 echo ""
