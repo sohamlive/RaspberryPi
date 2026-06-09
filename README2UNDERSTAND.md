@@ -70,7 +70,51 @@ An **Epson L3110** is connected to the Pi via USB and shared over the network vi
 
 ---
 
-## SD Card Protection
+## Remote Printing via Tailscale
+
+Tailscale must be **active and connected** on your device before printing. The printer is shared via CUPS over IPP — Tailscale makes it reachable from anywhere.
+
+### iPhone / iPad
+Nothing extra to configure. As long as Tailscale is active on your phone and Split DNS is set up for `.lab`, AirPrint finds `Epson L3110 @ homepi` automatically in the Print dialog — even away from home.
+
+### Mac
+One-time setup:
+1. System Settings → Printers & Scanners → click `+`
+2. Click the **IP** tab
+3. Fill in:
+   - Protocol: `IPP`
+   - Address: `homepi.darter-economy.ts.net`
+   - Queue: `printers/Epson-L3110`
+   - Name: `Epson L3110 (Remote)`
+4. macOS detects the driver automatically
+
+Works whenever Tailscale is active on the Mac.
+
+### Windows
+One-time setup:
+1. Settings → Bluetooth & devices → Printers & scanners → Add device → **Add manually**
+2. Choose **Add a printer using a TCP/IP address or hostname**
+3. Enter hostname: `homepi.darter-economy.ts.net` and port: `631`
+4. Select Epson L3110 driver when prompted
+
+Or use the direct IPP URL — choose **Add a printer using an IP address** and enter:
+```
+http://homepi.darter-economy.ts.net:631/printers/Epson-L3110
+```
+
+Works whenever Tailscale is running on the laptop.
+
+### Android
+1. Install **Mopria Print Service** from Play Store
+2. Open Mopria settings → Add printer manually
+3. Enter: `http://homepi.darter-economy.ts.net:631/printers/Epson-L3110`
+
+### Managing the print queue remotely
+Visit the CUPS web UI from anywhere via Tailscale:
+```
+https://homepi.darter-economy.ts.net:631
+```
+From here you can view the queue, cancel jobs, and check printer status.
 
 **log2ram** is installed to reduce SD card wear. It moves `/var/log` to RAM and syncs to disk once daily. If the Pi loses power unexpectedly, that day's logs may be lost — acceptable trade-off for a home lab.
 
